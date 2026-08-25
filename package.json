@@ -1,0 +1,10 @@
+{
+  "name": "razoragent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI-powered agentic commerce platform using Razorpay",
+  "scripts": {
+    "client": "npm run dev --prefix client",
+    "server": "npm run dev --prefix server"
+  }
+}
