@@ -20,7 +20,36 @@ router.post("/", async (req, res) => {
 // Get all products
 router.get("/", async (req, res) => {
   try {
-    const products = await Product.find().sort({ createdAt: -1 });
+    const { search, category, maxPrice } = req.query;
+
+    const filter = {};
+
+    // Search by product name or description
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    // Filter by category
+    if (category) {
+      filter.category = {
+        $regex: category,
+        $options: "i",
+      };
+    }
+
+    // Filter by maximum price
+    if (maxPrice) {
+      filter.price = {
+        $lte: Number(maxPrice),
+      };
+    }
+
+    const products = await Product.find(filter).sort({
+      createdAt: -1,
+    });
 
     res.status(200).json(products);
   } catch (error) {
