@@ -3,7 +3,7 @@ const Product = require("../models/Product");
 async function searchProducts({ search, category, maxPrice }) {
   const filter = {};
 
-  // Search name or description
+
   if (search) {
     filter.$or = [
       {
