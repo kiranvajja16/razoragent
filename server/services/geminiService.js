@@ -1,6 +1,10 @@
 const { GoogleGenAI } = require("@google/genai");
 const { searchProducts } = require("../tools/productTool");
-const { addToCart, getCart } = require("../tools/cartTool");
+const {
+  addToCart,
+  getCart,
+  calculateCartTotal,
+} = require("../tools/cartTool");
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
@@ -69,6 +73,21 @@ const tools = [
           required: ["userId"],
         },
       },
+      {
+        name: "calculateCartTotal",
+        description:
+          "Calculate the total cost of items in the customer's shopping cart.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            userId: {
+              type: "STRING",
+              description: "Customer ID.",
+            },
+          },
+          required: ["userId"],
+        },
+      },
     ],
   },
 ];
@@ -109,6 +128,8 @@ async function askGemini(message) {
       result = await addToCart(functionCall.args);
     } else if (functionCall.name === "getCart") {
       result = await getCart(functionCall.args.userId);
+    } else if (functionCall.name === "calculateCartTotal") {
+      result = await calculateCartTotal(functionCall.args.userId);
     } else {
       throw new Error(`Unknown tool: ${functionCall.name}`);
     }

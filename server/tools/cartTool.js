@@ -57,7 +57,47 @@ async function getCart(userId) {
   return cart;
 }
 
+async function calculateCartTotal(userId) {
+  const cart = await Cart.findOne({ userId }).populate("items.product");
+
+  if (!cart || cart.items.length === 0) {
+    return {
+      userId,
+      items: [],
+      total: 0,
+      currency: "INR",
+    };
+  }
+
+  const items = cart.items.map((item) => {
+    const price = item.product.price;
+    const quantity = item.quantity;
+    const subtotal = price * quantity;
+
+    return {
+      productId: item.product._id,
+      name: item.product.name,
+      price,
+      quantity,
+      subtotal,
+    };
+  });
+
+  const total = items.reduce(
+    (sum, item) => sum + item.subtotal,
+    0
+  );
+
+  return {
+    userId,
+    items,
+    total,
+    currency: "INR",
+  };
+}
+
 module.exports = {
   addToCart,
   getCart,
+  calculateCartTotal,
 };
