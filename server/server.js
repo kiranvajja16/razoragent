@@ -3,6 +3,7 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 require("dotenv").config();
 
+const cartRoutes = require("./routes/cartRoutes");
 const productRoutes = require("./routes/productRoutes");
 const agentRoutes = require("./routes/agentRoutes");
 
@@ -13,6 +14,7 @@ app.use(express.json());
 
 app.use("/api/products", productRoutes);
 app.use("/api/agent", agentRoutes);
+app.use("/api/cart", cartRoutes);
 
 const connectDB = async () => {
   try {

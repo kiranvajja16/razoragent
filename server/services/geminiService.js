@@ -1,5 +1,6 @@
 const { GoogleGenAI } = require("@google/genai");
 const { searchProducts } = require("../tools/productTool");
+const { addToCart, getCart } = require("../tools/cartTool");
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
@@ -11,25 +12,61 @@ const tools = [
       {
         name: "searchProducts",
         description:
-          "Search the product catalog for products matching the customer's requirements.",
+          "Search the merchant product catalog for products matching the customer's requirements.",
         parameters: {
           type: "OBJECT",
           properties: {
             search: {
               type: "STRING",
-              description: "Product name or keyword to search for.",
+              description: "Product name or keyword.",
             },
             category: {
               type: "STRING",
-              description:
-                "Product category such as Gaming, Electronics, Fitness, or Accessories.",
+              description: "Product category.",
             },
             maxPrice: {
               type: "NUMBER",
-              description:
-                "Maximum price the customer is willing to pay.",
+              description: "Maximum price the customer is willing to pay.",
             },
           },
+        },
+      },
+      {
+        name: "addToCart",
+        description:
+          "Add a product to the customer's shopping cart.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            userId: {
+              type: "STRING",
+              description: "Customer ID.",
+            },
+            productId: {
+              type: "STRING",
+              description: "MongoDB product ID.",
+            },
+            quantity: {
+              type: "NUMBER",
+              description: "Quantity to add.",
+            },
+          },
+          required: ["userId", "productId", "quantity"],
+        },
+      },
+      {
+        name: "getCart",
+        description:
+          "Retrieve the customer's shopping cart.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            userId: {
+              type: "STRING",
+              description: "Customer ID.",
+            },
+          },
+          required: ["userId"],
         },
       },
     ],
@@ -37,8 +74,7 @@ const tools = [
 ];
 
 async function askGemini(message) {
-  // 1. Ask Gemini
-  const response = await ai.models.generateContent({
+  const firstResponse = await ai.models.generateContent({
     model: "gemini-3.6-flash",
     contents: message,
     config: {
@@ -47,73 +83,79 @@ async function askGemini(message) {
   });
 
   console.log(
-    "Gemini response:",
-    JSON.stringify(response, null, 2)
+    "\nFIRST RESPONSE:\n",
+    JSON.stringify(firstResponse, null, 2)
   );
 
-  // 2. Check if Gemini wants to use a tool
-  const functionCalls = response.functionCalls;
+  const functionCalls = firstResponse.functionCalls;
 
+  // No tool call -> normal AI answer
   if (!functionCalls || functionCalls.length === 0) {
-    return response.text;
+    return firstResponse.text || "I couldn't generate a response.";
   }
 
-  const functionCall = functionCalls[0];
+  const functionResponses = [];
 
-  console.log("Tool requested:", functionCall.name);
-  console.log("Tool arguments:", functionCall.args);
+  // Execute all requested tools
+  for (const functionCall of functionCalls) {
+    console.log("\nTOOL:", functionCall.name);
+    console.log("ARGS:", functionCall.args);
 
-  // 3. Execute our tool
-  let toolResult;
+    let result;
 
-  if (functionCall.name === "searchProducts") {
-    toolResult = await searchProducts(functionCall.args);
-  } else {
-    throw new Error(`Unknown tool: ${functionCall.name}`);
+    if (functionCall.name === "searchProducts") {
+      result = await searchProducts(functionCall.args);
+    } else if (functionCall.name === "addToCart") {
+      result = await addToCart(functionCall.args);
+    } else if (functionCall.name === "getCart") {
+      result = await getCart(functionCall.args.userId);
+    } else {
+      throw new Error(`Unknown tool: ${functionCall.name}`);
+    }
+
+    console.log("RESULT:", result);
+
+    functionResponses.push({
+      functionResponse: {
+        name: functionCall.name,
+        response: {
+          result,
+        },
+      },
+    });
   }
 
-  console.log("Tool result:", toolResult);
+  // Preserve Gemini's original response content.
+  const history = [
+    {
+      role: "user",
+      parts: [
+        {
+          text: message,
+        },
+      ],
+    },
+    firstResponse.candidates[0].content,
+    {
+      role: "user",
+      parts: functionResponses,
+    },
+  ];
 
-  // 4. Send the ORIGINAL model response back,
-  // preserving Gemini's thought signature.
   const secondResponse = await ai.models.generateContent({
     model: "gemini-3.6-flash",
-
-    contents: [
-      {
-        role: "user",
-        parts: [
-          {
-            text: message,
-          },
-        ],
-      },
-
-      // IMPORTANT:
-      // Preserve the original response content.
-      response.candidates[0].content,
-
-      {
-        role: "user",
-        parts: [
-          {
-            functionResponse: {
-              name: functionCall.name,
-              response: {
-                products: toolResult,
-              },
-            },
-          },
-        ],
-      },
-    ],
-
+    contents: history,
     config: {
       tools,
     },
   });
 
-  return secondResponse.text;
+  console.log(
+    "\nSECOND RESPONSE:\n",
+    JSON.stringify(secondResponse, null, 2)
+  );
+
+  return secondResponse.text || "The action was completed.";
 }
 
 module.exports = {
