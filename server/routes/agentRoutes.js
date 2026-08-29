@@ -1,5 +1,5 @@
 const express = require("express");
-const { searchProducts } = require("../tools/productTool");
+const { askGemini } = require("../services/geminiService");
 
 const router = express.Router();
 
@@ -15,15 +15,10 @@ router.post("/chat", async (req, res) => {
 
     console.log("User message:", message);
 
-    // Temporary manual tool call
-    const products = await searchProducts({
-      search: "gaming",
-      maxPrice: 3000,
-    });
+    const reply = await askGemini(message);
 
     res.json({
-      reply: "I found products matching your request.",
-      products,
+      reply,
     });
   } catch (error) {
     console.error("Agent error:", error);
